@@ -101,6 +101,9 @@ else
 		--output $(XPKG_OUTPUT_DIR)/$(PLATFORM)/$(1)-$(VERSION).xpkg || $(FAIL)
 endif
 	@$(OK) Built package $(1)-$(VERSION).xpkg for $(PLATFORM)
+ifeq ($(XPKG_CLEANUP_EXAMPLES_ENABLED),true)
+	@rm -rf $(WORK_DIR)/xpkg-cleaned-examples
+endif
 xpkg.build: xpkg.build.$(1)
 endef
 $(foreach x,$(XPKGS),$(eval $(call xpkg.build.targets,$(x))))
