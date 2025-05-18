@@ -68,9 +68,6 @@ ifeq ($(XPKG_CLEANUP_EXAMPLES_ENABLED),true)
 	XPKG_PROCESSED_EXAMPLES_DIR=$(WORK_DIR)/xpkg-cleaned-examples
 endif
 
-# TODO(negz): Update these targets to use the crossplane CLI, not up.
-UP ?= up
-
 # =====================================================================================
 # XPKG Targets
 
@@ -83,18 +80,27 @@ ifeq ($(XPKG_CLEANUP_EXAMPLES_ENABLED),true)
 endif
 	@$(INFO) Building package $(1)-$(VERSION).xpkg for $(PLATFORM)
 	@mkdir -p $(OUTPUT_DIR)/xpkg/$(PLATFORM)
-	@controller_arg=$$$$(grep -E '^kind:\s+Provider\s*$$$$' $(XPKG_DIR)/crossplane.yaml > /dev/null && echo "--controller $(BUILD_REGISTRY)/$(1)-$(ARCH)"); \
+ifeq ($(UP),$(CROSSPLANE_CLI))
+    # NOTE(cychiang): crossplane CLI does not support --auth-ext, --controller and --output flags.
+    # However, the equivalent flags are --embed-runtime-image, and --package-file for --controller and --output.
+	@controller_arg=$$(grep -E '^kind:\s+Provider\s*$$' $(XPKG_DIR)/crossplane.yaml > /dev/null && echo "--embed-runtime-image $(BUILD_REGISTRY)/$(1)-$(ARCH)"); \
 	$(UP) xpkg build \
-		$$$${controller_arg} \
+		$${controller_arg} \
+		--package-root $(XPKG_DIR) \
+		--examples-root $(XPKG_EXAMPLES_DIR) \
+		--ignore $(XPKG_IGNORE) \
+		--package-file $(XPKG_OUTPUT_DIR)/$(PLATFORM)/$(1)-$(VERSION).xpkg || $(FAIL)
+else
+	@controller_arg=$$(grep -E '^kind:\s+Provider\s*$$' $(XPKG_DIR)/crossplane.yaml > /dev/null && echo "--controller $(BUILD_REGISTRY)/$(1)-$(ARCH)"); \
+	$(UP) xpkg build \
+		$${controller_arg} \
 		--package-root $(XPKG_DIR) \
 		--auth-ext $(XPKG_AUTH_EXT) \
 		--examples-root $(XPKG_PROCESSED_EXAMPLES_DIR) \
 		--ignore $(XPKG_IGNORE) \
 		--output $(XPKG_OUTPUT_DIR)/$(PLATFORM)/$(1)-$(VERSION).xpkg || $(FAIL)
-	@$(OK) Built package $(1)-$(VERSION).xpkg for $(PLATFORM)
-ifeq ($(XPKG_CLEANUP_EXAMPLES_ENABLED),true)
-	@rm -rf $(WORK_DIR)/xpkg-cleaned-examples
 endif
+	@$(OK) Built package $(1)-$(VERSION).xpkg for $(PLATFORM)
 xpkg.build: xpkg.build.$(1)
 endef
 $(foreach x,$(XPKGS),$(eval $(call xpkg.build.targets,$(x))))
